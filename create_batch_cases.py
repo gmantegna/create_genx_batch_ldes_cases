@@ -40,12 +40,26 @@ for path in pg_output_paths:
     for file in (path / "Inputs").glob("*.csv"):
         shutil.copy(file,destination_case_runner_folder / "template")
 
+    # modify Load_data.csv
+    load_data = pd.read_csv(destination_case_runner_folder / "template" / "Load_data.csv")
+    load_data.loc[0,"Timesteps_per_Rep_Period"] = 8760
+    load_data.loc[0,"Sub_Weights"] = 8760
+    load_data.to_csv(destination_case_runner_folder / "template" / "Load_data.csv",index=False)
+
+    # modify CO2_cap.csv
+    CO2_cap = pd.read_csv(destination_case_runner_folder / "template" / "CO2_cap.csv",index_col=0)
+    CO2_cap["CO_2_Cap_Zone_1"] = 1
+    CO2_cap.to_csv(destination_case_runner_folder / "template" / "CO2_cap.csv",index=True)
+
     # modify Generators_data.csv in place
 
     generators_data = pd.read_csv(destination_case_runner_folder / "template" / "Generators_data.csv")
 
     # drop all Hydrogen generators-- we will use the metal air technology as a "generic LDES"
     generators_data.drop(index=generators_data[generators_data.technology.str.contains("Hydrogen")].index,inplace=True)
+
+    # drop retrofit generators-- causing bugs and won't get picked in these cases
+    generators_data.drop(index=generators_data[generators_data.RETRO == 1].index,inplace=True)
 
     metalair_rows = generators_data[generators_data.technology.str.contains("MetalAir")]
     for index in metalair_rows.index:

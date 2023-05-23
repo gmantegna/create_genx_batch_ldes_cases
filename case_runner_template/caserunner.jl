@@ -376,7 +376,7 @@ function launch_new_case(i::Integer, df::DataFrame, files_with_keys::Vector{Stri
     copy_to_new_case_folder(i)
     replacements = get_specific_replacements(df, i)
     replace_keys_in_folder(i, replacements, files_with_keys)
-    # run_job(i)
+    run_job(i)
 end
 
 function launch_new_cases()
