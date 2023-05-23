@@ -6,19 +6,27 @@ import os
 import subprocess
 
 # inputs
-template_path = Path("./case_runner_template")
-julia_path = Path("/Applications/Julia-1.8.app/Contents/Resources/julia/bin/julia")
-destination_path = Path(".")
+template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_template")
+julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
+destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023")
 ldes_duration_hours = 200
 rep_period_lengths = [24,168,8760]
 num_rep_periods = [5,30]
 ldes_size_mw_base = 1 # size of ldes for the most granular aggregation (will be held constant across aggregations)
 pg_output_paths = [
-    Path("./pg_output_3z"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_26z/2045/t52nr_2045_52_week,_no_reduction"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_22z/2045/t52nr_2045_52_week,_no_reduction"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_17z/2045/t52nr_2045_52_week,_no_reduction"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_12z/2045/t52nr_2045_52_week,_no_reduction"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_7z/2045/t52nr_2045_52_week,_no_reduction"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_3z/2045/t52nr_2045_52_week,_no_reduction"),
 ]
 
 # load aggregation data
 constituents = pd.read_csv("constituents.csv")
+
+# get current path
+home_path = Path(".")
 
 for path in pg_output_paths:
     path_before_z = (str(path)).rpartition('z')[0]
@@ -92,4 +100,4 @@ for path in pg_output_paths:
     # run julia code
     os.chdir(destination_case_runner_folder)
     output = subprocess.run([julia_path, "caserunner.jl"])
-    os.chdir("..")
+    os.chdir(home_path)
