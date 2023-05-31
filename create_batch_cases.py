@@ -82,13 +82,13 @@ for path in pg_output_paths:
     # drop retrofit generators-- causing bugs and won't get picked in these cases
     generators_data.drop(index=generators_data[generators_data.RETRO == 1].index,inplace=True)
 
+    zone_map_cur = constituents[constituents.Aggregation==num_zones][["Zone","Map_3Zone"]].set_index("Zone").Map_3Zone.to_dict()
+
     # drop existing capacity requirement tags and add LDES capacity requirement tags
     mincap_columns = generators_data.columns[generators_data.columns.str.contains("MinCapTag")]
     generators_data.drop(columns=mincap_columns,inplace=True)
     for col_name in ["MinCapTag_1","MinCapTag_2","MinCapTag_3","MaxCapTag_1","MaxCapTag_2","MaxCapTag_3"]:
         generators_data[col_name]=0
-
-    zone_map_cur = constituents[constituents.Aggregation==num_zones][["Zone","Map_3Zone"]].set_index("Zone").Map_3Zone.to_dict()
 
     metalair_rows = generators_data[generators_data.technology.str.contains("MetalAir")]
     for index in metalair_rows.index:
@@ -113,7 +113,24 @@ for path in pg_output_paths:
         for duration_param in ["Min_Duration","Max_Duration"]:
             generators_data.loc[index,duration_param] = ldes_duration_hours
 
+    # modify capacity reserves to be by zone
+    capres = generators_data.CapRes_1.copy(deep=True)
+    for col_name in ["CapRes_1","CapRes_2","CapRes_3"]:
+        generators_data[col_name] = 0
+        curzone_mask = generators_data.region.map(zone_map_cur).map(region_to_zone_map) == int(col_name.split("_")[-1])
+        generators_data.loc[curzone_mask,col_name] = capres[curzone_mask]
+    
+    # output generators_data
     generators_data.to_csv(destination_case_runner_folder / "template" / "Generators_data.csv",index=False)
+
+    # modify Capacity_reserve_margin.csv
+    capres = pd.read_csv(destination_case_runner_folder / "template" / "Capacity_reserve_margin.csv")
+    capres_original = capres["CapRes_1"].copy(deep=True)
+    for col_name in ["CapRes_1","CapRes_2","CapRes_3"]:
+        capres[col_name] = 0
+        curzone_mask = capres.Network_zones.map(zone_map_cur).map(region_to_zone_map) == int(col_name.split("_")[-1])
+        capres.loc[curzone_mask,col_name] = capres_original[curzone_mask]
+    capres.to_csv(destination_case_runner_folder / "template" / "Capacity_reserve_margin.csv")
 
     # make replacements.csv
 
