@@ -9,10 +9,8 @@ import subprocess
 template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_template")
 julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
 destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023")
-ldes_duration_hours = 200
 rep_period_lengths = [24,168]#[24,72,168,336,8760]
-num_rep_periods = [5,30]#[5,15,30,45,60]
-ldes_size_mw_total = 1000 #MW of LDES forced in across all zones
+num_rep_periods = [5,30]#[5,15,30,45,52,60]
 ldes_proportions = { # how total LDES is allocated to each meta region (fractions are fraction of total nationwide peak load in load data) 
         1: 0.676,
         2: 0.105,
@@ -34,6 +32,26 @@ region_to_zone_map = {
 
 # load aggregation data
 constituents = pd.read_csv("constituents.csv")
+
+def make_replacements_df(rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost,advnuclear_maxcap,ldes_size_mw,ldes_duration,batteries_as_ldes,use_LDES_constraints)
+    replacements = pd.DataFrame()
+    for length in rep_period_lengths:
+        for num_periods in num_rep_periods:
+            if (length != 8760) and (num_periods * length > 8760):
+                continue
+            if length == 8760:
+                replacements_cur = pd.DataFrame(data=dict(UseTimeDomainReduction=[0],RepPeriodLengthHours=[0],NumRepPeriods=[0]))
+            else:
+                replacements_cur = pd.DataFrame(data=dict(UseTimeDomainReduction=[1],RepPeriodLengthHours=[length],NumRepPeriods=[num_periods]))
+            for zone_number in region_to_zone_map.values():
+                replacements_cur["LDESCapMW"+str(zone)] = ldes_size_mw * ldes_proportions[zone_number] 
+            replacements = pd.concat([replacements,replacements_cur],axis=0,ignore_index=True)
+    replacements["AdvNuclearCostPerMWYr"] = advnuclear_cost
+    replacements["AdvNuclearMaxCap"] = advnuclear_maxcap
+    replacements["LDESDuration"] = ldes_duration
+    replacements["BatteriesAsLDES"] = batteries_as_ldes
+    replacements["LDESAsLDES"] = use_LDES_constraints
+    return replacements
 
 # get current path
 home_path = Path(".")
@@ -82,9 +100,20 @@ for path in pg_output_paths:
     # drop retrofit generators-- causing bugs and won't get picked in these cases
     generators_data.drop(index=generators_data[generators_data.RETRO == 1].index,inplace=True)
 
+    # make advanced nuclear cost and availability special parameters
+    generators_data.loc[generators_data.technology.str.contains("AdvNuclear"),"Fixed_OM_Cost_per_MWyr"] = 0
+    generators_data.loc[generators_data.technology.str.contains("AdvNuclear"),"Inv_Cost_per_MWyr"] = "__SPECIAL_AdvNuclearCostPerMWYr__"
+    generators_data.loc[generators_data.technology.str.contains("AdvNuclear"),"Max_Cap_MW"] = "__SPECIAL_AdvNuclearMaxCap__"
+
+    # make classification of batteries as LDES a special parameter
+    generators_data.loc[generators_data.technology.str.contains("Batter"),"LDS"] = "__SPECIAL_BatteriesAsLDES__"
+
+    # make classification of LDES as LDES a special parameter
+    generators_data.loc[generators_data.technology.str.contains("MetalAir"),"LDS"] = "__SPECIAL_LDESAsLDES__"
+
     zone_map_cur = constituents[constituents.Aggregation==num_zones][["Zone","Map_3Zone"]].set_index("Zone").Map_3Zone.to_dict()
 
-    # drop existing capacity requirement tags and add LDES capacity requirement tags
+    # drop existing capacity requirement tags (LDES tags will be added later) 
     mincap_columns = generators_data.columns[generators_data.columns.str.contains("MinCapTag")]
     generators_data.drop(columns=mincap_columns,inplace=True)
     for col_name in ["MinCapTag_1","MinCapTag_2","MinCapTag_3","MaxCapTag_1","MaxCapTag_2","MaxCapTag_3"]:
@@ -111,7 +140,7 @@ for path in pg_output_paths:
 
         # fix LDES duration
         for duration_param in ["Min_Duration","Max_Duration"]:
-            generators_data.loc[index,duration_param] = ldes_duration_hours
+            generators_data.loc[index,duration_param] = "__SPECIAL_LDESDuration__"
 
     # modify capacity reserves to be by zone
     capres = generators_data.CapRes_1.copy(deep=True)
@@ -132,26 +161,7 @@ for path in pg_output_paths:
         capres.loc[curzone_mask,col_name] = capres_original[curzone_mask]
     capres.to_csv(destination_case_runner_folder / "template" / "Capacity_reserve_margin.csv")
 
-    # make replacements.csv
-
-    replacements = pd.DataFrame()
-
-    for length in rep_period_lengths:
-        for num_periods in num_rep_periods:
-            for incl_ldes in [1]:#[1,0]:
-
-                if (length != 8760) and (num_periods * length >= 8760):
-                    continue
-
-                if length == 8760:
-                    replacements_cur = pd.DataFrame(data=dict(UseTimeDomainReduction=[0],RepPeriodLengthHours=[0],NumRepPeriods=[0]))
-                else:
-                    replacements_cur = pd.DataFrame(data=dict(UseTimeDomainReduction=[1],RepPeriodLengthHours=[length],NumRepPeriods=[num_periods]))
-
-                for zone_number in region_to_zone_map.values():
-                    # LDES capacity = total LDES * proportion allocated to current zone * LDES boolean
-                    replacements_cur["LDESCapMW"+str(zone)] = ldes_size_mw_total * ldes_proportions[zone_number] * incl_ldes
-                replacements = pd.concat([replacements,replacements_cur],axis=0,ignore_index=True)
+    #code to generate all replacements goes here
 
     replacements.drop_duplicates(inplace=True)
     replacements["Notes"] = ""
@@ -164,3 +174,5 @@ for path in pg_output_paths:
     os.chdir(destination_case_runner_folder)
     output = subprocess.run([julia_path, "caserunner.jl"])
     os.chdir(home_path)
+
+
