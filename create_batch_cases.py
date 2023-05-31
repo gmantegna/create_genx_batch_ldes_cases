@@ -10,9 +10,9 @@ template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_temp
 julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
 destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023")
 ldes_duration_hours = 200
-rep_period_lengths = [24,168,8760]
-num_rep_periods = [5,30]
-ldes_size_mw_base = 1 # size of ldes for the most granular aggregation (will be held constant across aggregations)
+rep_period_lengths = [24,72,168,336,8760]
+num_rep_periods = [5,15,30,45,60]
+ldes_size_mw_base = 100 # size of ldes for the most granular aggregation (will be held constant across aggregations)
 pg_output_paths = [
     Path("/home/gm1710/Real_Conus_Aggs/results_26z/2045/t52nr_2045_52_week,_no_reduction"),
     Path("/home/gm1710/Real_Conus_Aggs/results_22z/2045/t52nr_2045_52_week,_no_reduction"),
@@ -89,7 +89,7 @@ for path in pg_output_paths:
 
     for length in rep_period_lengths:
         for num_periods in num_rep_periods:
-            for incl_ldes in [1,0]:
+            for incl_ldes in [1]:#[1,0]:
 
                 if (length != 8760) and (num_periods * length >= 8760):
                     continue
