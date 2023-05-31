@@ -10,9 +10,9 @@ template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_temp
 julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
 destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023")
 ldes_duration_hours = 200
-rep_period_lengths = [24,72,168,336,8760]
-num_rep_periods = [5,15,30,45,60]
-ldes_size_mw_base = 100 # size of ldes for the most granular aggregation (will be held constant across aggregations)
+rep_period_lengths = [24,168]#[24,72,168,336,8760]
+num_rep_periods = [5,30]#[5,15,30,45,60]
+ldes_size_mw_per_interconnect = 1000 #MW of LDES forced in for each of the three meta zones
 pg_output_paths = [
     Path("/home/gm1710/Real_Conus_Aggs/results_26z/2045/t52nr_2045_52_week,_no_reduction"),
     Path("/home/gm1710/Real_Conus_Aggs/results_22z/2045/t52nr_2045_52_week,_no_reduction"),
@@ -21,9 +21,6 @@ pg_output_paths = [
     Path("/home/gm1710/Real_Conus_Aggs/results_7z/2045/t52nr_2045_52_week,_no_reduction"),
     Path("/home/gm1710/Real_Conus_Aggs/results_3z/2045/t52nr_2045_52_week,_no_reduction"),
 ]
-
-# load aggregation data
-constituents = pd.read_csv("constituents.csv")
 
 # get current path
 home_path = Path(".")
@@ -67,6 +64,8 @@ for path in pg_output_paths:
 
         # make LDES new build
         generators_data.loc[index,"New_Build"] = 1
+
+        # add LDES capacity tag
 
         # specify LDES capacity
         for capacity_param in ["Min_Cap_MW","Max_Cap_MW","Min_Charge_Cap_MW","Max_Charge_Cap_MW"]:
