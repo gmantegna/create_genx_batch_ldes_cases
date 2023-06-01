@@ -9,8 +9,8 @@ import subprocess
 template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_template")
 julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
 destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023")
-rep_period_lengths = [24,72,168,336,8760]
-num_rep_periods = [5,15,30,45,52,75]
+rep_period_lengths = [24,72]#[24,72,168,336,8760]
+num_rep_periods = [5,30]#[5,15,30,45,52,75]
 ldes_proportions = { # how total LDES is allocated to each meta region (fractions are fraction of total nationwide peak load in load data) 
         1: 0.676,
         2: 0.105,
@@ -34,7 +34,7 @@ advnuclear_cost_base = 450000 # $/MW-yr including FOM-- with regional cost multi
 # load aggregation data
 constituents = pd.read_csv("constituents.csv")
 
-def make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost,advnuclear_maxcap,ldes_size_mw,ldes_duration,batteries_as_ldes,use_LDES_constraints)
+def make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost,advnuclear_maxcap,ldes_size_mw,ldes_duration,batteries_as_ldes,use_LDES_constraints):
     for length in rep_period_lengths:
         for num_periods in num_rep_periods:
             if (length != 8760) and (num_periods * length > 8760):
@@ -44,7 +44,7 @@ def make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_
             else:
                 replacements_cur = pd.DataFrame(data=dict(UseTimeDomainReduction=[1],RepPeriodLengthHours=[length],NumRepPeriods=[num_periods]))
             for zone_number in region_to_zone_map.values():
-                replacements_cur["LDESCapMW"+str(zone)] = ldes_size_mw * ldes_proportions[zone_number] 
+                replacements_cur["LDESCapMW"+str(zone_number)] = ldes_size_mw * ldes_proportions[zone_number] 
             replacements_cur["AdvNuclearCostPerMWYr"] = advnuclear_cost
             replacements_cur["AdvNuclearMaxCap"] = advnuclear_maxcap
             replacements_cur["LDESDuration"] = ldes_duration
