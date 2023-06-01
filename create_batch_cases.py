@@ -9,8 +9,8 @@ import subprocess
 template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_template")
 julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
 destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023")
-rep_period_lengths = [24,72]#[24,72,168,336,8760]
-num_rep_periods = [5,30]#[5,15,30,45,52,75]
+rep_period_lengths = [24,72,168,336,8760]
+num_rep_periods = [5,15,30,45,52,75]
 ldes_proportions = { # how total LDES is allocated to each meta region (fractions are fraction of total nationwide peak load in load data) 
         1: 0.676,
         2: 0.105,
@@ -154,13 +154,21 @@ for path in pg_output_paths:
 
     # modify Capacity_reserve_margin.csv
     capres = pd.read_csv(destination_case_runner_folder / "template" / "Capacity_reserve_margin.csv")
+    capres.columns.values[0] = "region"
     capres_original = capres["CapRes_1"].copy(deep=True)
     for col_name in ["CapRes_1","CapRes_2","CapRes_3"]:
         capres[col_name] = 0
-        curzone_mask = capres.Network_zones.map(zone_map_cur).map(region_to_zone_map) == int(col_name.split("_")[-1])
+        curzone_mask = capres.region.map(zone_map_cur).map(region_to_zone_map) == int(col_name.split("_")[-1])
         capres.loc[curzone_mask,col_name] = capres_original[curzone_mask]
-    capres.to_csv(destination_case_runner_folder / "template" / "Capacity_reserve_margin.csv")
-    
+    capres.to_csv(destination_case_runner_folder / "template" / "Capacity_reserve_margin.csv",index=False)
+
+    # modify Network.csv
+    network = pd.read_csv(destination_case_runner_folder / "template" / "Network.csv")
+    for capres_num in [2,3]:
+        for col_name in ["DerateCapRes_","CapRes_Excl_"]:
+            network[col_name+str(capres_num)] = network[col_name+"1"]
+    network.to_csv(destination_case_runner_folder / "template" / "Network.csv",index=False)
+
     ### make replacements.csv
 
     replacements = pd.DataFrame()
