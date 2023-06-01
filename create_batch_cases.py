@@ -9,8 +9,8 @@ import subprocess
 template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_template")
 julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
 destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023")
-rep_period_lengths = [24,168]#[24,72,168,336,8760]
-num_rep_periods = [5,30]#[5,15,30,45,52,60]
+rep_period_lengths = [24,72,168,336,8760]
+num_rep_periods = [5,15,30,45,52,75]
 ldes_proportions = { # how total LDES is allocated to each meta region (fractions are fraction of total nationwide peak load in load data) 
         1: 0.676,
         2: 0.105,
@@ -29,12 +29,12 @@ region_to_zone_map = {
         "TRE": 2,
         "WECC": 3,
 }
+advnuclear_cost_base = 450000 # $/MW-yr including FOM-- with regional cost multiplier = 1
 
 # load aggregation data
 constituents = pd.read_csv("constituents.csv")
 
-def make_replacements_df(rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost,advnuclear_maxcap,ldes_size_mw,ldes_duration,batteries_as_ldes,use_LDES_constraints)
-    replacements = pd.DataFrame()
+def make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost,advnuclear_maxcap,ldes_size_mw,ldes_duration,batteries_as_ldes,use_LDES_constraints)
     for length in rep_period_lengths:
         for num_periods in num_rep_periods:
             if (length != 8760) and (num_periods * length > 8760):
@@ -45,12 +45,12 @@ def make_replacements_df(rep_period_lengths,num_rep_periods,region_to_zone_map,l
                 replacements_cur = pd.DataFrame(data=dict(UseTimeDomainReduction=[1],RepPeriodLengthHours=[length],NumRepPeriods=[num_periods]))
             for zone_number in region_to_zone_map.values():
                 replacements_cur["LDESCapMW"+str(zone)] = ldes_size_mw * ldes_proportions[zone_number] 
+            replacements_cur["AdvNuclearCostPerMWYr"] = advnuclear_cost
+            replacements_cur["AdvNuclearMaxCap"] = advnuclear_maxcap
+            replacements_cur["LDESDuration"] = ldes_duration
+            replacements_cur["BatteriesAsLDES"] = batteries_as_ldes
+            replacements_cur["LDESAsLDES"] = use_LDES_constraints
             replacements = pd.concat([replacements,replacements_cur],axis=0,ignore_index=True)
-    replacements["AdvNuclearCostPerMWYr"] = advnuclear_cost
-    replacements["AdvNuclearMaxCap"] = advnuclear_maxcap
-    replacements["LDESDuration"] = ldes_duration
-    replacements["BatteriesAsLDES"] = batteries_as_ldes
-    replacements["LDESAsLDES"] = use_LDES_constraints
     return replacements
 
 # get current path
@@ -160,8 +160,33 @@ for path in pg_output_paths:
         curzone_mask = capres.Network_zones.map(zone_map_cur).map(region_to_zone_map) == int(col_name.split("_")[-1])
         capres.loc[curzone_mask,col_name] = capres_original[curzone_mask]
     capres.to_csv(destination_case_runner_folder / "template" / "Capacity_reserve_margin.csv")
+    
+    ### make replacements.csv
 
-    #code to generate all replacements goes here
+    replacements = pd.DataFrame()
+
+    # base case
+    replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1)
+
+    # advanced nuclear cost 25% higher
+    replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base*1.25,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1)
+
+    # advanced nuclear cost 25% lower
+    replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base*0.75,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1)
+
+    # no advanced nuclear (w/ batteries as LDES)
+    replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=0,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=1,use_LDES_constraints=1)
+
+    # different amounts of LDES forced in
+    for ldes_size_mw in [100,1000,10000,50000]:
+        replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=ldes_size_mw,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1)
+
+    # different LDES durations
+    for ldes_duration in [24,100,200,500]:
+        replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=ldes_duration,batteries_as_ldes=0,use_LDES_constraints=1)
+
+    # no LDES constraints
+    replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=0)
 
     replacements.drop_duplicates(inplace=True)
     replacements["Notes"] = ""
