@@ -10,7 +10,7 @@ template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_temp
 julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
 destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023")
 rep_period_lengths = [24,72,168,336,8760]
-num_rep_periods = [5,15,30,45,52,75]
+num_rep_periods = [5,15,30,45,52,75,100]
 ldes_proportions = { # how total LDES is allocated to each meta region (fractions are fraction of total nationwide peak load in load data) 
         1: 0.676,
         2: 0.105,
