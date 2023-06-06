@@ -13,3 +13,4 @@ NumericFocus: 0               # Numerical precision emphasis.
 Crossover: 0               # Barrier crossver strategy.
 PreDual: 0                    # Decides whether presolve should pass the primal or dual linear programming problem to the LP optimization algorithm.
 AggFill: 10                   # Allowed fill during presolve aggregation.
+BarHomogeneous: 1
