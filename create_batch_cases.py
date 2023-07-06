@@ -11,11 +11,11 @@ import create_vrestor_inputs
 # inputs
 template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_template_colocated")
 julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
-destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023_colocated")
+destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023_colocated_full_clusters")
 rep_period_lengths = [24,72,168,336,8760]
-rep_period_default_length = 72 # will be used for cases other than 26 zone
+rep_period_default_length = 168 # will be used for cases other than 7 zone
 num_rep_periods = [5,15,30,45,52,75,100]
-num_rep_periods_default = 45 # will be used for cases other than 26 zone
+num_rep_periods_default = 5 # will be used for cases other than 26 zone
 ldes_proportions = { # how total LDES is allocated to each meta region (fractions are fraction of total nationwide peak load in load data) 
         1: 0.676,
         2: 0.105,
@@ -204,7 +204,7 @@ for path in pg_output_paths:
 
         replacements = pd.DataFrame()
 
-        if num_zones != 26:
+        if num_zones != 7:
             rep_period_lengths_to_use = [rep_period_default_length]
             num_rep_periods_to_use = [num_rep_periods_default]
         else:
