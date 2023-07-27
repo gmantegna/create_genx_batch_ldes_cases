@@ -9,25 +9,25 @@ sys.path.append("/home/gm1710/vrestor-preprocessing/")
 import create_vrestor_inputs
 
 # inputs
-template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_template_colocated")
+template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_template")
 julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
-destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023_colocated_full_clusters")
+destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_2023_with_zerocarbonCT")
 rep_period_lengths = [24,72,168,336,8760]
-rep_period_default_length = 168 # will be used for cases other than 7 zone
+rep_period_default_length = 168 # will be used for zonal aggregations other than default
 num_rep_periods = [5,15,30,45,52,75,100]
-num_rep_periods_default = 5 # will be used for cases other than 26 zone
+num_rep_periods_default = 5 # will be used for zonal aggregations other than default
 ldes_proportions = { # how total LDES is allocated to each meta region (fractions are fraction of total nationwide peak load in load data) 
         1: 0.676,
         2: 0.105,
         3: 0.219,
 }
 pg_output_paths = [
-    Path("/home/gm1710/Real_Conus_Aggs/results_26z_colocated/2045/t52nr_2045_52_week,_no_reduction"),
-    Path("/home/gm1710/Real_Conus_Aggs/results_22z_colocated/2045/t52nr_2045_52_week,_no_reduction"),
-    Path("/home/gm1710/Real_Conus_Aggs/results_17z_colocated/2045/t52nr_2045_52_week,_no_reduction"),
-    Path("/home/gm1710/Real_Conus_Aggs/results_12z_colocated/2045/t52nr_2045_52_week,_no_reduction"),
-    Path("/home/gm1710/Real_Conus_Aggs/results_7z_colocated/2045/t52nr_2045_52_week,_no_reduction"),
-    Path("/home/gm1710/Real_Conus_Aggs/results_3z_colocated/2045/t52nr_2045_52_week,_no_reduction"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_26z/2045/t52nr_2045_52_week,_no_reduction"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_22z/2045/t52nr_2045_52_week,_no_reduction"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_17z/2045/t52nr_2045_52_week,_no_reduction"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_12z/2045/t52nr_2045_52_week,_no_reduction"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_7z/2045/t52nr_2045_52_week,_no_reduction"),
+    Path("/home/gm1710/Real_Conus_Aggs/results_3z/2045/t52nr_2045_52_week,_no_reduction"),
 ]
 region_to_zone_map = {
         "EIC": 1,
@@ -35,12 +35,18 @@ region_to_zone_map = {
         "WECC": 3,
 }
 advnuclear_cost_base = 450000 # $/MW-yr including FOM-- with regional cost multiplier = 1
-run_colocated = True
+run_colocated = False
+run_base_case = False
+run_zerocarbonCT = True
+run_other_sensitivities = False
+default_num_zones=12
+run_default_num_zones_only=True
+zerocarbon_fuel_cost = 20 # $/mmbtu
 
 # load aggregation data
 constituents = pd.read_csv("constituents.csv")
 
-def make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost,advnuclear_maxcap,ldes_size_mw,ldes_duration,batteries_as_ldes,use_LDES_constraints):
+def make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost,advnuclear_maxcap,ldes_size_mw,ldes_duration,batteries_as_ldes,use_LDES_constraints,zerocarbonCTMaxCap):
     for length in rep_period_lengths:
         for num_periods in num_rep_periods:
             if (length != 8760) and (num_periods * length > 8760):
@@ -56,6 +62,7 @@ def make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_
             replacements_cur["LDESDuration"] = ldes_duration
             replacements_cur["BatteriesAsLDES"] = batteries_as_ldes
             replacements_cur["LDESAsLDES"] = use_LDES_constraints
+            replacements_cur["zerocarbonCTMaxCap"] = zerocarbonCTMaxCap
             replacements = pd.concat([replacements,replacements_cur],axis=0,ignore_index=True)
     return replacements
 
@@ -70,7 +77,10 @@ for path in pg_output_paths:
     for case in cases:
         path_before_z = (str(path)).rpartition('z')[0]
         num_zones = int(path_before_z.split("_")[-1])
-        
+
+        if num_zones != default_num_zones and run_default_num_zones_only:
+            continue
+
         # copy case runner template folder into a new folder under destination path
         case_runner_name = "case_runner_"+str(num_zones)+"_zone"
         if run_colocated:
@@ -87,6 +97,12 @@ for path in pg_output_paths:
         load_data.loc[0,"Timesteps_per_Rep_Period"] = 8760
         load_data.loc[0,"Sub_Weights"] = 8760
         load_data.to_csv(destination_case_runner_folder / "template" / "Load_data.csv",index=False)
+
+        # modify Fuels_data.csv
+        fuels_data = pd.read_csv(destination_case_runner_folder / "template" / "Fuels_data.csv")
+        fuels_data["zerocarbon_fuel"]=0
+        fuels_data.loc[1:,"zerocarbon_fuel"] = zerocarbon_fuel_cost
+        fuels_data.to_csv(destination_case_runner_folder / "template" / "Fuels_data.csv",index=False)
 
         # modify CO2_cap.csv
         CO2_cap = pd.read_csv(destination_case_runner_folder / "template" / "CO2_cap.csv",index_col=0)
@@ -157,7 +173,7 @@ for path in pg_output_paths:
             generators_data[col_name] = 0
             curzone_mask = generators_data.region.map(zone_map_cur).map(region_to_zone_map) == int(col_name.split("_")[-1])
             generators_data.loc[curzone_mask,col_name] = capres[curzone_mask]
-        
+
         # output generators_data
         generators_data.to_csv(destination_case_runner_folder / "template" / "Generators_data.csv",index=False)
 
@@ -198,13 +214,28 @@ for path in pg_output_paths:
         generators_data.loc[generators_data.technology.str.contains("AdvNuclear"),"Fixed_OM_Cost_per_MWyr"] = 0
         generators_data.loc[generators_data.technology.str.contains("AdvNuclear"),"Inv_Cost_per_MWyr"] = "__SPECIAL_AdvNuclearCostPerMWYr__"
         generators_data.loc[generators_data.technology.str.contains("AdvNuclear"),"Max_Cap_MW"] = "__SPECIAL_AdvNuclearMaxCap__"
+
+        # add CTs with zero carbon fuel and make their availability a special parameter
+        CT_rows = generators_data[generators_data.technology.str.contains("NaturalGas_CTAvgCF_Moderate")].copy(deep=True)
+        CT_rows["Max_Cap_MW"] = "__SPECIAL_zerocarbonCTMaxCap__"
+        CT_rows["Fuel"] = "zerocarbon_fuel"
+        CT_rows["Resource"] = CT_rows["Resource"] + "_zerocarbon"
+        CT_rows["technology"] = CT_rows["technology"] + "_zerocarbon"
+        generators_data = pd.concat([generators_data,CT_rows],axis=0,ignore_index=True)
+        
         generators_data.to_csv(destination_case_runner_folder / "template" / "Generators_data.csv",index=False)
+
+        # add availability for CTs with zero carbon fuel (note this depends on the code above)
+        generators_variability = pd.read_csv(destination_case_runner_folder / "template" / "Generators_variability.csv")
+        for generator in CT_rows.Resource.values:
+            generators_variability[generator] = 1
+        generators_variability.to_csv(destination_case_runner_folder / "template" / "Generators_variability.csv")
 
         ### make replacements.csv
 
         replacements = pd.DataFrame()
 
-        if num_zones != 7:
+        if num_zones != default_num_zones:
             rep_period_lengths_to_use = [rep_period_default_length]
             num_rep_periods_to_use = [num_rep_periods_default]
         else:
@@ -212,28 +243,33 @@ for path in pg_output_paths:
             num_rep_periods_to_use = num_rep_periods
 
         # base case
-        replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1)
+        if run_base_case:
+            replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=0)
         
-        if not run_colocated:
+        # add CT with zero carbon fuel
+        if run_zerocarbonCT:
+            replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=-1)
+
+        if run_other_sensitivities:
             # advanced nuclear cost 25% higher
-            replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base*1.25,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1)
+            replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base*1.25,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=0)
         
             # advanced nuclear cost 25% lower
-            replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base*0.75,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1)
+            replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base*0.75,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=0)
         
             # no advanced nuclear (w/ batteries as LDES)
-            replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=0,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=1,use_LDES_constraints=1)
+            replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=0,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=1,use_LDES_constraints=1,zerocarbonCTMaxCap=0)
         
             # different amounts of LDES forced in
             for ldes_size_mw in [100,1000,10000,50000]:
-                replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=ldes_size_mw,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1)
+                replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=ldes_size_mw,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=0)
         
             # different LDES durations
             for ldes_duration in [24,100,200,500]:
-                replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=ldes_duration,batteries_as_ldes=0,use_LDES_constraints=1)
+                replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=ldes_duration,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=0)
         
             # no LDES constraints
-            replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=0)
+            replacements = make_replacements_df(replacements,rep_period_lengths_to_use,num_rep_periods_to_use,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=0,zerocarbonCTMaxCap=0)
         
         replacements.drop_duplicates(inplace=True)
         replacements["Notes"] = ""
@@ -244,7 +280,7 @@ for path in pg_output_paths:
 
         # run julia code
         os.chdir(destination_case_runner_folder)
-        output = subprocess.run([julia_path, "caserunner.jl"])
+        # output = subprocess.run([julia_path, "caserunner.jl"])
         os.chdir(home_path)
 
 
