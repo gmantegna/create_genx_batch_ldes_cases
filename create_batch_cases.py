@@ -229,7 +229,7 @@ for path in pg_output_paths:
         CT_rows = generators_data[generators_data.technology.str.contains("NaturalGas_CTAvgCF_Moderate")].copy(deep=True)
         CT_rows["Max_Cap_MW"] = "__SPECIAL_zerocarbonCTMaxCap__"
         CT_rows["Fixed_OM_Cost_per_MWyr"] = 0
-        CT_rows["Inv_Cost_per_MWyr"] = "__SPECIAL_zerocarbonCTCostPerMWYr"
+        CT_rows["Inv_Cost_per_MWyr"] = "__SPECIAL_zerocarbonCTCostPerMWYr__"
         CT_rows["Fuel"] = "zerocarbon_fuel"
         CT_rows["Resource"] = CT_rows["Resource"] + "_zerocarbon"
         CT_rows["technology"] = CT_rows["technology"] + "_zerocarbon"
@@ -295,7 +295,7 @@ for path in pg_output_paths:
 
         # run julia code
         os.chdir(destination_case_runner_folder)
-        # output = subprocess.run([julia_path, "caserunner.jl"])
+        output = subprocess.run([julia_path, "caserunner.jl"])
         os.chdir(home_path)
 
 
