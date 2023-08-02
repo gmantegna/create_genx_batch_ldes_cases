@@ -11,7 +11,7 @@ import create_vrestor_inputs
 # inputs
 template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_template")
 julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
-destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_072023")
+destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_072023_const_hours")
 rep_period_lengths = [24,72,168,336,8760]
 num_rep_periods = [5,15,30,45,52,75,100]
 ldes_proportions = { # how total LDES is allocated to each meta region (fractions are fraction of total nationwide peak load in load data) 
@@ -89,9 +89,7 @@ for path in pg_output_paths:
             continue
 
         # copy case runner template folder into a new folder under destination path
-        case_runner_name = "case_runner_"+str(num_zones)+"_zone"
-        if run_colocated:
-            case_runner_name += "_" + case
+        case_runner_name = "case_runner_"+str(num_zones)+"_zone_" + case
         destination_case_runner_folder = destination_path / case_runner_name
         destination = shutil.copytree(template_path, destination_case_runner_folder)
 
@@ -251,6 +249,11 @@ for path in pg_output_paths:
         replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=-1,zerocarbonCTCostPerMWYr=zerocarbonCT_cost_base,ZeroCarbonFuelCost=zerocarbon_fuel_cost_base)
         
         if case == "no_vrestor" and num_zones == default_num_zones:
+            # run constant hours experiment
+            for zerocarbonct_max_cap in [-1,0]:
+                for num_periods,length in [(140,24),(70,48),(35,96),(28,120),(20,168),(10,336),(70,24),(35,48),(14,120),(10,168),(5,336),(50,24),(25,48),(10,120),(5,240),(35,24),(7,120),(5,168)]:
+                    replacements = make_replacements_df(replacements,[length],[num_periods],region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=zerocarbonct_max_cap,zerocarbonCTCostPerMWYr=zerocarbonCT_cost_base,ZeroCarbonFuelCost=zerocarbon_fuel_cost_base)
+
             # zerocarbon CT cost 25% higher
             replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=-1,zerocarbonCTCostPerMWYr=zerocarbonCT_cost_base*1.25,ZeroCarbonFuelCost=zerocarbon_fuel_cost_base)
 
