@@ -35,7 +35,7 @@ region_to_zone_map = {
 advnuclear_cost_base = 450000 # $/MW-yr including FOM-- with regional cost multiplier = 1
 run_colocated = True
 default_num_zones=12
-run_default_num_zones_only=True
+run_default_num_zones_only=False
 zerocarbon_fuel_cost_base = 20 # $/mmbtu
 zerocarbonCT_cost_base = 61000 # $/MW-yr including FOM-- with regional cost multiplier = 1
 
