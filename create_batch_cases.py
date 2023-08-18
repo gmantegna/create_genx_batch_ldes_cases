@@ -11,7 +11,7 @@ import create_vrestor_inputs
 # inputs
 template_path = Path("/home/gm1710/create_genx_batch_ldes_cases/case_runner_template")
 julia_path = Path("/usr/licensed/julia/1.8.2/bin/julia")
-destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_072023_extra_sensitivities_all_zones")
+destination_path = Path("/scratch/gpfs/gm1710/GenX_cases/LDES_082023")
 rep_period_lengths = [24,72,168,336,8760]
 num_rep_periods = [5,15,30,45,52,75,85,100]
 ldes_proportions = { # how total LDES is allocated to each meta region (fractions are fraction of total nationwide peak load in load data) 
@@ -33,12 +33,23 @@ region_to_zone_map = {
         "WECC": 3,
 }
 advnuclear_cost_base = 450000 # $/MW-yr including FOM-- with regional cost multiplier = 1
-run_colocated = False
+run_colocated = True
 default_num_zones=12
-run_default_num_zones_only=False
+run_default_num_zones_only=True
 zerocarbon_fuel_cost_base = 20 # $/mmbtu
 zerocarbonCT_cost_base = 61000 # $/MW-yr including FOM-- with regional cost multiplier = 1
 
+# delete directory if exists
+if destination_path.exists():
+    response = input("Destination path exists. Do you want to permanently delete this directory and replace? (y/n): ").strip().lower()
+    if response == 'n':
+        print("exiting script.")
+        exit()
+    elif response == 'y':
+        shutil.rmtree(destination_path)
+    else:
+        print("Invalid input. Please enter either 'y' or 'n'.")
+    
 # load aggregation data
 constituents = pd.read_csv("constituents.csv")
 
@@ -73,7 +84,7 @@ for path in pg_output_paths:
     else:
         cases = ["no_vrestor"]
     for case in cases:
-        for emissions_price in [None,200]: 
+        for emissions_price in [None,200]:
             # if using vrestor module, use the PG outputs with the DC profiles
             if case != "no_vrestor":
                 path_split = (str(path)).rpartition('z')
@@ -96,6 +107,7 @@ for path in pg_output_paths:
             case_runner_name = "case_runner_"+str(num_zones)+"_zone_" + case + "_" + emissions_case
             destination_case_runner_folder = destination_path / case_runner_name
             destination = shutil.copytree(template_path, destination_case_runner_folder)
+            print("creating {}".format(case_runner_name))
 
             # copy all input files from PG outputs to destination folder
             for file in (path_to_use / "Inputs").glob("*.csv"):
@@ -229,7 +241,8 @@ for path in pg_output_paths:
                             case_folder=destination_case_runner_folder / "template",
                             storage_type="LDES",
                             colocated_on=colocated_on_param,
-                            zero_out_storage_costs=True
+                            zero_out_storage_costs=True,
+                            itc_stor=False
                     )
 
             # part of the generators_data.csv modification must be done after the colocated modifications are being run
@@ -278,11 +291,6 @@ for path in pg_output_paths:
                 replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=0,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=1,use_LDES_constraints=1,zerocarbonCTMaxCap=0,zerocarbonCTCostPerMWYr=zerocarbonCT_cost_base,ZeroCarbonFuelCost=zerocarbon_fuel_cost_base)
 
             if case == "no_vrestor" and num_zones == default_num_zones:
-                # run constant hours experiment
-                for zerocarbonct_max_cap in [-1,0]:
-                    for num_periods,length in [(140,24),(70,48),(35,96),(28,120),(20,168),(10,336),(70,24),(35,48),(14,120),(10,168),(5,336),(50,24),(25,48),(10,120),(5,240),(35,24),(7,120),(5,168)]:
-                        replacements = make_replacements_df(replacements,[length],[num_periods],region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=zerocarbonct_max_cap,zerocarbonCTCostPerMWYr=zerocarbonCT_cost_base,ZeroCarbonFuelCost=zerocarbon_fuel_cost_base)
-
                 # zerocarbon CT cost 25% higher
                 replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=-1,zerocarbonCTCostPerMWYr=zerocarbonCT_cost_base*1.25,ZeroCarbonFuelCost=zerocarbon_fuel_cost_base)
 
@@ -310,7 +318,14 @@ for path in pg_output_paths:
                 for incl_ldes_constraints in [1,0]:
                     for ldes_duration in [4,8,12,24,100,200,500]:
                         replacements = make_replacements_df(replacements,rep_period_lengths,num_rep_periods,region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=ldes_duration,batteries_as_ldes=0,use_LDES_constraints=incl_ldes_constraints,zerocarbonCTMaxCap=-1,zerocarbonCTCostPerMWYr=zerocarbonCT_cost_base,ZeroCarbonFuelCost=zerocarbon_fuel_cost_base)
-       
+
+                # run constant hours experiment
+                for zerocarbonct_max_cap in [-1,0]:
+                    for num_periods,length in [(140,24),(70,48),(35,96),(28,120),(20,168),(10,336),(70,24),(35,48),(14,120),(10,168),(5,336),(50,24),(25,48),(10,120),(5,240),(35,24),(7,120),(5,168)]:
+                        replacements = make_replacements_df(replacements,[length],[num_periods],region_to_zone_map,ldes_proportions,advnuclear_cost=advnuclear_cost_base,advnuclear_maxcap=-1,ldes_size_mw=1000,ldes_duration=200,batteries_as_ldes=0,use_LDES_constraints=1,zerocarbonCTMaxCap=zerocarbonct_max_cap,zerocarbonCTCostPerMWYr=zerocarbonCT_cost_base,ZeroCarbonFuelCost=zerocarbon_fuel_cost_base)
+                
+
+
             replacements.drop_duplicates(inplace=True)
             replacements["Notes"] = ""
             replacements.index.name="Case"
